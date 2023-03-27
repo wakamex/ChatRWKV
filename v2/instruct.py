@@ -17,8 +17,10 @@ from prompt_toolkit.shortcuts import clear
 current_path = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(f"{current_path}/../rwkv_pip_package/src")
 
+prompt_number = 4
 with contextlib.suppress(Exception):
-    os.environ["CUDA_VISIBLE_DEVICES"] = sys.argv[1]
+    #os.environ["CUDA_VISIBLE_DEVICES"] = sys.argv[1]
+    prompt_number = sys.argv[1]
 np.set_printoptions(precision=4, suppress=True, linewidth=200)
 args = types.SimpleNamespace()
 
@@ -49,7 +51,7 @@ PILE_v2_MODEL = False
 # -1.py for [User & Bot] (Q&A) prompt
 # -2.py for [Bob & Alice] (chat) prompt
 # -3.py for a very long (but great) chat prompt (requires ctx8192, and set RWKV_CUDA_ON = 1 or it will be very slow)
-PROMPT_FILE = f"{current_path}/prompt/default/{CHAT_LANG}-4.py"
+PROMPT_FILE = f"{current_path}/prompt/default/{CHAT_LANG}-{prompt_number}.py"
 
 # args.ctx_len = 1024
 args.ctx_len = 8192
@@ -112,7 +114,7 @@ def run_rnn(tokens, newline_adj=0):
 
     tokens = [int(x) for x in tokens]
     model_tokens += tokens
-    # print(f'### model ###\n{tokens}\n[{pipeline.decode(model_tokens)}]')
+    # print(f"### model ###\n{tokens}\n[{pipeline.decode(model_tokens)}]")
 
     while len(tokens) > 0:
         out, model_state = model.forward(tokens[:CHUNK_LEN], model_state)
@@ -267,7 +269,7 @@ Below is an instruction that describes a task. Write a response that appropriate
         for i in range(FREE_GEN_LEN + 100):
             for n in occurrence:
                 out[n] -= GEN_alpha_presence + occurrence[n] * GEN_alpha_frequency
-            token = pipeline.sample_logits(
+            token, _, _ = pipeline.sample_logits(
                 out,
                 temperature=x_temp,
                 top_p=x_top_p,
@@ -323,17 +325,18 @@ Below is an instruction that describes a task. Write a response that appropriate
 
             for n in occurrence:
                 out[n] -= GEN_alpha_presence + occurrence[n] * GEN_alpha_frequency
-            token = pipeline.sample_logits(
+            token, rest, probs = pipeline.sample_logits(
                 out,
                 temperature=x_temp,
                 top_p=x_top_p,
             )
+            if probs[0] - probs[1] < 0.05:
+                words = pipeline.decode(rest).split()
+                # print(" [" + " ".join([f"{w}({i=},{p:.2f})" for w, i, p in zip(words, rest, probs)]) + "]")
+                # print(" [" + " ".join([f"{w}({p:.2f})" for w, p in zip(words, probs)]) + "]")
             # if token == END_OF_TEXT:
             #     break
-            if token not in occurrence:
-                occurrence[token] = 1
-            else:
-                occurrence[token] += 1
+            occurrence.update({token: occurrence.get(token, 0) + 1})
 
             out = run_rnn([token], newline_adj=newline_adj)
             out[END_OF_TEXT] = -999999999  # disable <|endoftext|>
