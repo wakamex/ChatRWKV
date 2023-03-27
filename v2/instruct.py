@@ -273,10 +273,7 @@ Below is an instruction that describes a task. Write a response that appropriate
             )
             if token == END_OF_TEXT:
                 break
-            if token not in occurrence:
-                occurrence[token] = 1
-            else:
-                occurrence[token] += 1
+            occurrence.update({token: occurrence.get(token, 0) + 1})
 
             if msg[:4].lower() == "+qa ":  # or msg[:4].lower() == '+qq ':
                 out = run_rnn([token], newline_adj=-2)
