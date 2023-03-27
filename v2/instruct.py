@@ -43,21 +43,13 @@ os.environ["RWKV_JIT_ON"] = "1"  # '1' or '0', please use torch 1.13+ and benchm
 os.environ["RWKV_CUDA_ON"] = "1"  # '1' to compile CUDA kernel (10x faster), requires c++ compiler & cuda libraries
 
 CHAT_LANG = "English"  # English // Chinese // more to come
-
-# Download RWKV-4 models from https://huggingface.co/BlinkDL (don't use Instruct-test models unless you use their prompt templates)
-# Use '/' in model path, instead of '\'
-# Use convert_model.py to convert a model for a strategy, for faster loading & saves CPU RAM
-if CHAT_LANG == "Chinese":
-    args.MODEL_NAME = "/fsx/BlinkDL/HF-MODEL/rwkv-4-pile-7b/RWKV-4-Pile-7B-EngChn-testNovel-done-ctx2048-20230317"
-elif CHAT_LANG == "English":
-    # args.MODEL_NAME = '/fsx/BlinkDL/HF-MODEL/rwkv-4-pile-14b/RWKV-4-Pile-14B-20230313-ctx8192-test1050'
-    args.MODEL_NAME = "/data/BlinkDL/RWKV-4-Pile-14B-20230313-ctx8192-test1050.pth"
+args.MODEL_NAME = "/data/BlinkDL/RWKV-4-Pile-7B-Instruct-test4-20230326_fp16.pth"  # 7Btest4_fp16
 PILE_v2_MODEL = False
 
 # -1.py for [User & Bot] (Q&A) prompt
 # -2.py for [Bob & Alice] (chat) prompt
 # -3.py for a very long (but great) chat prompt (requires ctx8192, and set RWKV_CUDA_ON = 1 or it will be very slow)
-PROMPT_FILE = f"{current_path}/prompt/default/{CHAT_LANG}-3.py"
+PROMPT_FILE = f"{current_path}/prompt/default/{CHAT_LANG}-4.py"
 
 # args.ctx_len = 1024
 args.ctx_len = 8192
@@ -67,15 +59,13 @@ FREE_GEN_LEN = 200
 
 # For better chat & QA quality: reduce temp, reduce top-p, increase repetition penalties
 # Explanation: https://platform.openai.com/docs/api-reference/parameter-details
-GEN_TEMP = 0.2  # 1.0  # sometimes it's a good idea to increase temp. try it
-GEN_TOP_P = 0.8
-GEN_alpha_presence = 0.2  # Presence Penalty
-GEN_alpha_frequency = 0.2  # Frequency Penalty
+GEN_TEMP = 1.0  # sometimes it's a good idea to increase temp. try it
+GEN_TOP_P = 0.5  # 0.8
+GEN_alpha_presence = 0.4  # 0.2  # Presence Penalty
+GEN_alpha_frequency = 0.4  # 0.2  # Frequency Penalty
 AVOID_REPEAT = "，：？！"
 
 CHUNK_LEN = 256  # split input into chunks to save VRAM (shorter -> slower)
-
-########################################################################################################
 
 print(f"\n{CHAT_LANG} - {args.strategy} - {PROMPT_FILE}")
 from rwkv.model import RWKV
