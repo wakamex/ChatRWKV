@@ -1,2 +1,4 @@
 tokenizers>=0.13.2
 prompt_toolkit
+numpy
+torch==1.13.1
