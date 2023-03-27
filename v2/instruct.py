@@ -4,15 +4,14 @@
 
 import os
 import sys
-import json
-import math
-import time
+import copy
 import types
 import contextlib
 
 import numpy as np
 import torch
 from prompt_toolkit import prompt
+from prompt_toolkit.shortcuts import clear
 
 current_path = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(f"{current_path}/../rwkv_pip_package/src")
@@ -187,7 +186,13 @@ def on_message(message):
     if x_top_p <= 0:
         x_top_p = 0
 
-    if msg == "+reset":
+    if msg == "p":  # print state
+        for n in all_state:
+            out = all_state[n]["out"]
+            clear()
+            print(f"=== {n}===\n - {pipeline.decode(all_state[n]['token'])}")
+        return
+    elif msg == "+reset":
         out = load_all_stat("", "chat_init")
         save_all_stat(srv, "chat", out)
         reply_msg("Chat reset.")
