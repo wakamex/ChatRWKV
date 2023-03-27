@@ -307,6 +307,7 @@ Below is an instruction that describes a task. Write a response that appropriate
 
         begin = len(model_tokens)
         out_last = begin
+        print(f"{x_temp=} {x_top_p=}")
         print(f"{bot}{interface}", end="", flush=True)
         occurrence = {}
         for i in range(999):
