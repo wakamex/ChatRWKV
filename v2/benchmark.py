@@ -2,39 +2,53 @@
 # The RWKV Language Model - https://github.com/BlinkDL/RWKV-LM
 ########################################################################################################
 
-import os, sys, types, json, math, time
-current_path = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(f'{current_path}/../rwkv_pip_package/src')
-try:
-    os.environ["CUDA_VISIBLE_DEVICES"] = sys.argv[1]
-except:
-    pass
+import os
+import sys
+import json
+import math
+import time
+import contextlib
+
 import numpy as np
+import torch
+
+current_path = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(f"{current_path}/../rwkv_pip_package/src")
+with contextlib.suppress(Exception):
+    os.environ["CUDA_VISIBLE_DEVICES"] = sys.argv[1]
+
 np.set_printoptions(precision=4, suppress=True, linewidth=200)
 with open(f"{current_path}/../misc/lambada_test.jsonl", "r", encoding="utf-8") as f:
     todo = [json.loads(line) for line in f]
-    todo = [[doc['text'].rsplit(' ', 1)[0], " " + doc['text'].rsplit(' ', 1)[1]] for doc in todo]
+    todo = [[doc["text"].rsplit(" ", 1)[0], " " + doc["text"].rsplit(" ", 1)[1]] for doc in todo]
 
 ########################################################################################################
 
-os.environ["RWKV_JIT_ON"] = '1'
-os.environ["RWKV_CUDA_ON"] = '1'
+os.environ["RWKV_JIT_ON"] = "1"
+os.environ["RWKV_CUDA_ON"] = "1"
+# os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:32"
 
 # MODEL_NAME = '/fsx/BlinkDL/HF-MODEL/rwkv-4-pile-14b/RWKV-4-Pile-14B-20230213-8019'
 # MODEL_NAME = '/fsx/BlinkDL/HF-MODEL/rwkv-4-pile-1b5/RWKV-4-Pile-1B5-20220903-8040'
 # MODEL_NAME = '/fsx/BlinkDL/HF-MODEL/rwkv-4-pile-7b/RWKV-4-Pile-7B-20230109-ctx4096'
-MODEL_NAME = '/fsx/BlinkDL/HF-MODEL/rwkv-4-pile-3b/RWKV-4-Pile-3B-20221110-ctx4096'
+# MODEL_NAME = '/fsx/BlinkDL/HF-MODEL/rwkv-4-pile-3b/RWKV-4-Pile-3B-20221110-ctx4096'
+# MODEL_NAME = "/data/BlinkDL/RWKV-4-Pile-14B-20230313-ctx8192-test1050.pth" # 14Btest1050
+# MODEL_NAME = "/data/BlinkDL/RWKV-4-Pile-7B-Instruct-test4-20230326.pth"  # 7Btest4
+MODEL_NAME = "/data/BlinkDL/RWKV-4-Pile-7B-Instruct-test4-20230326_fp16.pth"  # 7Btest4_fp16
+# MODEL_NAME = "/data/BlinkDL/RWKV-4-Pile-7B-Instruct-test3-20230325.pth"  # 7Btest3
+# MODEL_NAME = "/data/BlinkDL/RWKV-4-Pile-7B-Instruct-test3-20230325_fp16.pth"  # 7Btest3_fp16
+# MODEL_NAME = "/data/BlinkDL/RWKV-4-Pile-7B-Instruct-test3-20230325_fp16i8.pth"  # 7Btest3_fp16i8
 # MODEL_NAME = '/fsx/BlinkDL/HF-MODEL/rwkv-4-pile-169m/RWKV-4-Pile-169M-20220807-8023'
 
 PAD_SEQ = [187]
 
 ########################################################################################################
 
-print(f'\nLoading ChatRWKV https://github.com/BlinkDL/ChatRWKV')
-import torch
-torch.backends.cudnn.benchmark = True
-torch.backends.cudnn.allow_tf32 = True
-torch.backends.cuda.matmul.allow_tf32 = True
+print("\nLoading ChatRWKV https://github.com/BlinkDL/ChatRWKV")
+
+torch.backends.cudnn.benchmark = True  # type: ignore
+torch.backends.cudnn.allow_tf32 = True  # type: ignore
+torch.backends.cuda.matmul.allow_tf32 = True  # type: ignore
 
 # Tune these below (test True/False for all of them) to find the fastest setting:
 # torch._C._jit_set_profiling_executor(True)
@@ -48,85 +62,98 @@ from torch.nn import functional as F
 from rwkv.model import RWKV
 from rwkv.utils import PIPELINE, PIPELINE_ARGS
 
-print(f'Loading model - {MODEL_NAME}')
-model = RWKV(model=MODEL_NAME, strategy='cuda fp16')
-# model = RWKV(model=MODEL_NAME, strategy='cuda fp16 *0+')
-# model = RWKV(model=MODEL_NAME, strategy='cuda fp16 *10+')
-# model = RWKV(model=MODEL_NAME, strategy='cuda fp16i8')
+print(f"Loading model - {MODEL_NAME}")
+
+########################################################################################################
+
+# 7Btest4      n=5153 ppl=4.35 acc=66.64 speed=0.04073693237667378 (MB used = 16_413 - 1166 = 15_247)
+# 7Btest4_fp16 n=5153 ppl=4.35 acc=66.64 speed=0.04144331241218708 (MB used = 16_358 - 1110 = 15_248)
+# 7Btest3      n=2000 ppl=4.17 acc=67.95 speed=0.03787282270750000 (MB used = 16_101 -  886 = 15_215)
+# 7Btest3_fp16 n=5153 ppl=4.28 acc=67.07 speed=0.03784431224975742 (MB used = 16_283 - 1073 = 15_210)
+# model = RWKV(model=MODEL_NAME, strategy="cuda fp16")
+
+# 7Btest3 n=70 ppl=4.1 acc=65.71 speed=0.5916178028428571
+# model = RWKV(model=MODEL_NAME, strategy="cuda fp16 *0+")
+
+# 7Btest3 n=100 ppl=4.6 acc=65.0 speed=0.43389775818
+# model = RWKV(model=MODEL_NAME, strategy="cuda fp16 *10+")
+
+# 7Btest3 doesn't run
+# model = RWKV(model=MODEL_NAME, strategy="cuda fp16 -> cuda fp32 *10+")
+# model = RWKV(model=MODEL_NAME, strategy="cuda fp16 *30 -> cuda fp32 *0+")
+# model = RWKV(model=MODEL_NAME, strategy="cuda fp32 *10+")
+# model = RWKV(model=MODEL_NAME, strategy="cuda fp16 *23 -> cuda fp32 *0+")
+# model = RWKV(model=MODEL_NAME, strategy="cuda fp16 *23 -> cuda fp32 *0+ -> cuda fp16 *1")
+
+# 7Btest4 n=5153 ppl=4.35 acc=66.66 speed=0.04188912068464972 (MB used = 16676 - 1073 = 15_603)
+# model = RWKV(model=MODEL_NAME, strategy="cuda fp16 *32 -> cuda fp32 *0+")
+
+# 7Btest4 n=5153 ppl=4.35 acc=66.66 speed=0.04241702760624879 (MB used = 16648 - 1045 = 15_603)
+# model = RWKV(model=MODEL_NAME, strategy="cuda fp16 *32 -> cuda fp32 *1")
+
+model = RWKV(model=MODEL_NAME, strategy="cuda fp32 *0+")
+
+# 7Btest3 n=1000 ppl=4.29 acc=67.1 speed=0.043735098749 (MB used = 16644 - 1088 = 15556)
+# 7Btest3 n=3000 ppl=4.28 acc=67.23 speed=0.03852334132333333 (MB used = 16606 - 1003 = 15603)
+# model = RWKV(model=MODEL_NAME, strategy="cuda fp16 -> cuda fp32 *1")
+
+# 7Btest3 n=630 ppl=4.22 acc=67.14 speed=0.2244852413920635 (MB used = 15754 - 1013 = 14741)
+# model = RWKV(model=MODEL_NAME, strategy="cuda fp16 -> cpu fp32 *1")
+
+# 7Btest3_fp16i8 n=50 ppl=5.19 acc=62.0 speed=1.1939671835 (MB used = 8944 - 1062 = 7882)
+# 14Btest1050 n=150 ppl=4.1 acc=70.67 speed=2.3742486898466666
+# model = RWKV(model=MODEL_NAME, strategy="cuda fp16i8")
+
 # model = RWKV(model=MODEL_NAME, strategy='cuda fp16i8 *0+')
 # model = RWKV(model=MODEL_NAME, strategy='cuda fp16i8 *10+')
 # model = RWKV(model=MODEL_NAME, strategy='cuda fp16i8 *1 -> cuda fp16')
+
+# 14Btest1050 n=150 ppl=4.1 acc=71.3 speed=1.23725974588
+# model = RWKV(model=MODEL_NAME, strategy="cuda fp16 -> cuda fp16i8 *20")
+
+# 14Btest1050 n=300 ppl=3.88 acc=72.0 speed=1.1271492735933333
+# model = RWKV(model=MODEL_NAME, strategy="cuda fp16 -> cuda fp16i8 *19 -> cuda fp16")
+
+# 14Btest1050 n=3590 ppl=3.84 acc=70.84 speed=1.0047915335693594 (MB used = 23481 - 870 = 22611)
+# model = RWKV(model=MODEL_NAME, strategy="cuda fp16 -> cuda fp16i8 *17 -> cuda fp16")
+
+# 14Btest1050 n=100 ppl=4.27 acc=69.0 speed=1.17113113277
+# 14Btest1050 n=150 ppl=4.02 acc=71.3 speed=1.2000412033066665
+# 14Btest1050 n=200 ppl=3.75 acc=73.5 speed=1.18234537701
+# 14Btest1050 n=300 ppl=3.87 acc=72.0 speed=1.1814055428433332
+# model = RWKV(model=MODEL_NAME, strategy="cuda fp16i8 *20 -> cuda fp16")
+
+# 14Btest1050 didn't run
+# 7btest4 didn't run
+# model = RWKV(model=MODEL_NAME, strategy="cpu fp32 *20 -> cuda fp16")
+
+# 14Btest1050 n=100 ppl=4.37 acc=70.0 speed=2.464
 # model = RWKV(model=MODEL_NAME, strategy='cuda fp16i8 -> cpu fp32 *1')
+
+# 14Btest1050 didn't run
 # model = RWKV(model=MODEL_NAME, strategy='cpu fp32')
+
+# 14Btest1050 didn't run
 # model = RWKV(model=MODEL_NAME, strategy='cpu fp32i8')
+
+# 14Btest1050 didn't run
 # model = RWKV(model=MODEL_NAME, strategy='cuda fp16i8 *10 -> cuda fp16 *0+')
+
+###########################################################################
 pipeline = PIPELINE(model, "20B_tokenizer.json")
 
-print('Warmup...')
-out, state = model.forward([187, 510, 1563, 310, 247], None, full_output=True)
-print(out[-1,:].detach().cpu().numpy())
-out, state = model.forward([187], None)
-print(out.detach().cpu().numpy())
-out, state = model.forward([510, 1563], state)
-out, state = model.forward([310, 247], state)
-print(out.detach().cpu().numpy())
-out, state = model.forward([187], None)
-out, state = model.forward([510, 1563, 310, 247], state)
-print(out.detach().cpu().numpy())
-out, state = model.forward([187, 510, 1563, 310], None)
-out, state = model.forward([247], state)
-print(out.detach().cpu().numpy())
-out, state = model.forward([187, 510], None)
-out, state = model.forward([1563], state)
-out, state = model.forward([310, 247], state)
-print(out.detach().cpu().numpy())
-
-########################################################################################################
-
-# init_token = pipeline.encode("In the event that the Purchaser defaults in the payment of any instalment of purchase price, taxes, insurance, interest, or the annual charge described elsewhere herein, or shall default in the performance of any other obligations set forth in this Contract, the Seller may: at his option: (a) Declare immediately due and payable the entire unpaid balance of purchase price, with accrued interest, taxes, and annual charge, and demand full payment thereof, and enforce conveyance of the land by termination of the contract or according to the terms hereof, in which case the Purchaser shall also be liable to the Seller for reasonable attorney's fees for services rendered by any attorney on behalf of the Seller, or (b) sell said land and premises or any part thereof at public auction, in such manner, at such time and place, upon such terms and conditions, and upon such public notice as the Seller may deem best for the interest of all concerned, consisting of advertisement in a newspaper of general circulation in the county or city in which the security property is located at least once a week for Three (3) successive weeks or for such period as applicable law may require and, in case of default of any purchaser, to re-sell with such postponement of sale or resale and upon such public notice thereof as the Seller may determine, and upon compliance by the Purchaser with the terms of sale, and upon judicial approval as may be required by law, convey said land and premises in fee simple to and at the cost of the Purchaser, who shall not be liable to see to the application of the purchase money; and from the proceeds of the sale: First to pay all proper costs and charges, including but not limited to court costs, advertising expenses, auctioneer's allowance, the expenses, if any required to correct any irregularity in the title, premium for Seller's bond, auditor's fee, attorney's fee, and all other expenses of sale occurred in and about the protection and execution of this contract, and all moneys advanced for taxes, assessments, insurance, and with interest thereon as provided herein, and all taxes due upon said land and premises at time of sale, and to retain as compensation a commission of five percent (5%) on the amount of said sale or sales; SECOND, to pay the whole amount then remaining unpaid of the principal of said contract, and interest thereon to date of payment, whether the same shall be due or not, it being understood and agreed that upon such sale before maturity of the contract the balance thereof shall be immediately due and payable; THIRD, to pay liens of record against the security property according to their priority of lien and to the extent that funds remaining in the hands of the Seller are available; and LAST, to pay the remainder of said proceeds, if any, to the vendor, his heirs, personals representatives, successors or assigns upon the delivery and surrender to the vendee of possession of the land and premises, less costs and excess of obtaining possession.")
-init_token = pipeline.encode("In the event that the Purchaser defaults in the payment of any instalment of purchase price")
-
-print('Benchmark speed...')
-time_slot = {}
-
-def record_time(name):
-    if name not in time_slot:
-        time_slot[name] = 1e20
-    tt = (time.time_ns() - time_ref) / 1e9
-    if tt < time_slot[name]:
-        time_slot[name] = tt
-
-for i in range(10):
-    time_ref = time.time_ns()
-    out, state = model.forward(init_token, None)
-    aa = out.detach().cpu().numpy()
-    record_time('fast')
-    print(f"fast {round(time_slot['fast'], 4)}s {aa}")
-
-    time_ref = time.time_ns()
-    for j in range(len(init_token)):
-        out, state = model.forward([init_token[j]], None if j == 0 else state)
-    aa = out.detach().cpu().numpy()
-    record_time('slow')
-    print(f"slow {round(time_slot['slow'], 4)}s {aa}")
-
-# exit(0)
-
-########################################################################################################
-
-print('Check LAMBADA...')
-xsum = 0
-xcnt = 0
-xacc = 0
+print(f"Check LAMBADA on {MODEL_NAME}...{len(todo)=} samples")
+xsum, xcnt, xacc = 0, 0, 0
+time_ref = time.time_ns()
 for d in todo:
     src = PAD_SEQ + pipeline.encode(d[0])
     dst = pipeline.encode(d[1])
 
     logits = 0
     correct = True
-    out, model_state = model.forward(src+dst, None, full_output=True)
+    out, model_state = model.forward(src + dst, None, full_output=True)
     for i in range(len(dst)):
-        probs = F.softmax(out[len(src)-1+i,:], dim=-1)
+        probs = F.softmax(out[len(src) - 1 + i, :], dim=-1)
         logits += math.log(probs[dst[i]])
         if torch.argmax(probs).item() != dst[i]:
             correct = False
@@ -134,5 +161,9 @@ for d in todo:
     xcnt += 1
     xsum += logits
     xacc += 1 if correct else 0
-    if xcnt % 100 == 0 or xcnt == len(todo):
-        print(xcnt, 'ppl', round(math.exp(-xsum / xcnt), 2), 'acc', round(xacc/xcnt*100, 2))
+    if xcnt % 10 == 0 or xcnt == len(todo):
+        print(
+            f"n={xcnt} ppl={round(math.exp(-xsum / xcnt), 2)}"
+            f" acc={round(xacc / xcnt * 100, 2)}"
+            f" speed={(time.time_ns()-time_ref)/xcnt/1e9}"
+        )
