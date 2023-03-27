@@ -1,0 +1,11 @@
+[project]
+line-length = "120"
+
+[tool.pylint.format]
+max-line-length = "120"
+
+[tool.black]
+line-length = "120"
+extend-exclude = "\\.ipynb"
+
+[tool.pyright]
