@@ -38,29 +38,7 @@ torch.backends.cuda.matmul.allow_tf32 = True  # type: ignore
 # torch._C._jit_set_texpr_fuser_enabled(False)
 # torch._C._jit_set_nvfuser_enabled(False)
 
-########################################################################################################
-#
-# fp16 = good for GPU (!!! DOES NOT support CPU !!!)
-# fp32 = good for CPU
-# bf16 = less accuracy, supports some CPUs
-# xxxi8 (example: fp16i8) = xxx with int8 quantization to save 50% VRAM/RAM, slightly less accuracy
-#
-# Read https://pypi.org/project/rwkv/ for Strategy Guide
-#
-########################################################################################################
-
-# args.strategy = "cpu fp32"
-# args.strategy = "cuda fp16"
-# args.strategy = 'cuda:0 fp16 -> cuda:1 fp16'
-# args.strategy = 'cuda fp16i8 *10 -> cuda fp16'
-# args.strategy = "cuda fp16i8"
-# args.strategy = "cuda fp16i8 *1 -> cuda fp16" # 98% VRAM
-# args.strategy = "cuda fp16i8 *2 -> cuda fp16"  # 96% VRAM
-args.strategy = "cuda fp16i8 *3 -> cuda fp16"  # 94% VRAM
-
-# args.strategy = 'cuda fp16i8 -> cpu fp32 *10'
-# args.strategy = 'cuda fp16i8 *10+'
-
+args.strategy = "cuda fp16"
 os.environ["RWKV_JIT_ON"] = "1"  # '1' or '0', please use torch 1.13+ and benchmark speed
 os.environ["RWKV_CUDA_ON"] = "1"  # '1' to compile CUDA kernel (10x faster), requires c++ compiler & cuda libraries
 
