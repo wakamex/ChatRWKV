@@ -69,22 +69,11 @@ CHAT_LANG = "English"  # English // Chinese // more to come
 # Download RWKV-4 models from https://huggingface.co/BlinkDL (don't use Instruct-test models unless you use their prompt templates)
 # Use '/' in model path, instead of '\'
 # Use convert_model.py to convert a model for a strategy, for faster loading & saves CPU RAM
-if CHAT_LANG == "English":
+if CHAT_LANG == "Chinese":
+    args.MODEL_NAME = "/fsx/BlinkDL/HF-MODEL/rwkv-4-pile-7b/RWKV-4-Pile-7B-EngChn-testNovel-done-ctx2048-20230317"
+elif CHAT_LANG == "English":
     # args.MODEL_NAME = '/fsx/BlinkDL/HF-MODEL/rwkv-4-pile-14b/RWKV-4-Pile-14B-20230313-ctx8192-test1050'
     args.MODEL_NAME = "/data/BlinkDL/RWKV-4-Pile-14B-20230313-ctx8192-test1050.pth"
-    # args.MODEL_NAME = '/fsx/BlinkDL/HF-MODEL/rwkv-4-pile-7b/RWKV-4-Pile-7B-20230109-ctx4096'
-    # args.MODEL_NAME = '/fsx/BlinkDL/HF-MODEL/rwkv-4-pile-3b/RWKV-4-Pile-3B-20221110-ctx4096'
-    # args.MODEL_NAME = 'cuda_fp16_RWKV-4-Pile-7B-20230109-ctx4096' # use convert_model.py for faster loading & saves CPU RAM
-    # args.MODEL_NAME = 'fp16i8_and_fp16_RWKV-4-Pile-3B-20221110-ctx4096' # use convert_model.py for faster loading & saves CPU RAM
-    # args.MODEL_NAME = '/fsx/BlinkDL/HF-MODEL/rwkv-4-pile-7b/RWKV-4-Pile-7B-Instruct-test4-20230326' # this is only suitable for +i instruct
-
-elif CHAT_LANG == "Chinese":  # testNovel系列是网文模型，请只用 +gen 指令续写。test5系列可以问答，推荐用 +i 做长问答（只用了小中文语料，纯属娱乐）
-    args.MODEL_NAME = "/fsx/BlinkDL/HF-MODEL/rwkv-4-pile-7b/RWKV-4-Pile-7B-EngChn-testNovel-done-ctx2048-20230317"
-    # args.MODEL_NAME = '/fsx/BlinkDL/HF-MODEL/rwkv-4-pile-3b/RWKV-4-Pile-3B-EngChn-testNovel-done-ctx2048-20230226'
-    # args.MODEL_NAME = '/fsx/BlinkDL/HF-MODEL/rwkv-4-pile-1b5/RWKV-4-Pile-1B5-EngChn-testNovel-done-ctx2048-20230225'
-    # args.MODEL_NAME = '/fsx/BlinkDL/HF-MODEL/rwkv-4-pile-7b/RWKV-4-Pile-7B-EngChn-test5-20230326'
-
-
 PILE_v2_MODEL = False
 
 # -1.py for [User & Bot] (Q&A) prompt
