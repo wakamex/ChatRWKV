@@ -11,6 +11,7 @@ import contextlib
 
 import numpy as np
 import torch
+from torch.nn import functional as F
 from prompt_toolkit import prompt
 from prompt_toolkit.shortcuts import clear
 
@@ -19,7 +20,7 @@ sys.path.append(f"{current_path}/../rwkv_pip_package/src")
 
 prompt_number = 4
 with contextlib.suppress(Exception):
-    #os.environ["CUDA_VISIBLE_DEVICES"] = sys.argv[1]
+    # os.environ["CUDA_VISIBLE_DEVICES"] = sys.argv[1]
     prompt_number = sys.argv[1]
 np.set_printoptions(precision=4, suppress=True, linewidth=200)
 args = types.SimpleNamespace()
@@ -40,12 +41,16 @@ torch.backends.cuda.matmul.allow_tf32 = True  # type: ignore
 # torch._C._jit_set_texpr_fuser_enabled(False)
 # torch._C._jit_set_nvfuser_enabled(False)
 
-args.strategy = "cuda fp16"
 os.environ["RWKV_JIT_ON"] = "1"  # '1' or '0', please use torch 1.13+ and benchmark speed
 os.environ["RWKV_CUDA_ON"] = "1"  # '1' to compile CUDA kernel (10x faster), requires c++ compiler & cuda libraries
 
 CHAT_LANG = "English"  # English // Chinese // more to come
-args.MODEL_NAME = "/data/BlinkDL/RWKV-4-Pile-7B-Instruct-test4-20230326_fp16.pth"  # 7Btest4_fp16
+# args.MODEL_NAME = "/data/BlinkDL/RWKV-4-Pile-7B-Instruct-test4-20230326_fp16.pth"  # 7Btest4_fp16
+# args.strategy = "cuda fp16"
+# args.MODEL_NAME = "/data/BlinkDL/RWKV-4-Raven-14B-v7-Eng-20230404-ctx4096_fp16i8.pth"  # 14Btest7_fp16i8 (17 layers of i8)
+# args.strategy = "cuda fp16 -> cuda fp16i8 *17 -> cuda fp16"  # runs
+args.MODEL_NAME = "/data/BlinkDL/RWKV-4-Raven-14B-v7-Eng-20230404-ctx4096_fp16i8l19.pth"  # 14Btest7_fp16i8l19
+args.strategy = "cuda fp16 -> cuda fp16i8 *19 -> cuda fp16"  # runs
 PILE_v2_MODEL = False
 
 # -1.py for [User & Bot] (Q&A) prompt
@@ -156,9 +161,44 @@ save_all_stat("", "chat_init", out)
 gc.collect()
 torch.cuda.empty_cache()
 
+show_branches = False
+
 srv_list = ["dummy_server"]
 for s in srv_list:
     save_all_stat(s, "chat", out)
+
+
+def sample_logits(logits, temperature=1.0, top_p=0.85, top_k=0):
+    probs = F.softmax(logits.float(), dim=-1)
+    top_k = int(top_k)
+    if probs.device == torch.device("cpu"):
+        probs = probs.numpy()
+        sorted_ids = np.argsort(probs)
+        sorted_probs = probs[sorted_ids][::-1]
+        cumulative_probs = np.cumsum(sorted_probs)
+        cutoff = float(sorted_probs[np.argmax(cumulative_probs > top_p)])
+        probs[probs < cutoff] = 0
+        if top_k < len(probs) and top_k > 0:
+            probs[sorted_ids[:-top_k]] = 0
+        if temperature != 1.0:
+            probs = probs ** (1.0 / temperature)
+        probs = probs / np.sum(probs)
+        res = np.random.choice(a=len(probs), p=probs, size=10)
+    else:
+        sorted_ids = torch.argsort(probs)
+        sorted_probs = probs[sorted_ids]
+        sorted_probs = torch.flip(sorted_probs, dims=(0,))
+        cumulative_probs = torch.cumsum(sorted_probs, dim=-1).cpu().numpy()
+        cutoff = float(sorted_probs[np.argmax(cumulative_probs > top_p)])
+        probs[probs < cutoff] = 0
+        if top_k < len(probs) and top_k > 0:
+            probs[sorted_ids[:-top_k]] = 0
+        if temperature != 1.0:
+            probs = probs ** (1.0 / temperature)
+        res = torch.multinomial(probs, num_samples=10)
+    out = res[0]
+    res = [int(r) for r in res]
+    return int(out), res, probs[res]
 
 
 def reply_msg(msg):
@@ -166,7 +206,7 @@ def reply_msg(msg):
 
 
 def on_message(message):
-    global model_tokens, model_state
+    global model_tokens, model_state, show_branches
 
     srv = "dummy_server"
 
@@ -200,6 +240,12 @@ def on_message(message):
         save_all_stat(srv, "chat", out)
         reply_msg("Chat reset.")
         return
+    elif msg == "-b":
+        show_branches = False
+        reply_msg("show_branches off.")
+    elif msg == "+b":
+        show_branches = True
+        reply_msg("show_branches on.")
 
     elif (
         msg[:5].lower() == "+gen "
@@ -295,6 +341,7 @@ Below is an instruction that describes a task. Write a response that appropriate
         # reply_msg(send_msg)
         save_all_stat(srv, "gen_1", out)
 
+    # === REGULAR GENERATE ===
     else:
         if msg.lower() == "+":
             try:
@@ -310,7 +357,7 @@ Below is an instruction that describes a task. Write a response that appropriate
 
         begin = len(model_tokens)
         out_last = begin
-        print(f"{x_temp=} {x_top_p=}")
+        print(f"{x_temp=} {x_top_p=} {show_branches=}")
         print(f"{bot}{interface}", end="", flush=True)
         occurrence = {}
         for i in range(999):
@@ -325,15 +372,16 @@ Below is an instruction that describes a task. Write a response that appropriate
 
             for n in occurrence:
                 out[n] -= GEN_alpha_presence + occurrence[n] * GEN_alpha_frequency
-            token, rest, probs = pipeline.sample_logits(
+            token, rest, probs = sample_logits(
                 out,
                 temperature=x_temp,
                 top_p=x_top_p,
             )
-            if probs[0] - probs[1] < 0.05:
-                words = pipeline.decode(rest).split()
-                # print(" [" + " ".join([f"{w}({i=},{p:.2f})" for w, i, p in zip(words, rest, probs)]) + "]")
-                # print(" [" + " ".join([f"{w}({p:.2f})" for w, p in zip(words, probs)]) + "]")
+            if show_branches is True:
+                if probs[0] - probs[1] < 0.02:
+                    words = pipeline.decode(rest).split()
+                    # print(" [" + " ".join([f"{w}({i=},{p:.2f})" for w, i, p in zip(words, rest, probs)]) + "]")
+                    print(" [" + " ".join([f"{w}({p:.2f})" for w, p in zip(words, probs)]) + "]")
             # if token == END_OF_TEXT:
             #     break
             occurrence.update({token: occurrence.get(token, 0) + 1})
