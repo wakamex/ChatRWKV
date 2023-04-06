@@ -8,6 +8,13 @@ from rwkv.model import RWKV
 # python convert_model.py --in '/fsx/BlinkDL/HF-MODEL/rwkv-4-pile-14b/RWKV-4-Pile-14B-20230313-ctx8192-test1050' --out 'fp16_RWKV-4-Pile-14B-20230313-ctx8192-test1050' --strategy 'cuda fp16'
 # python convert_model.py --in '/fsx/BlinkDL/HF-MODEL/rwkv-4-pile-7b/RWKV-4-Pile-7B-20230109-ctx4096' --out 'fp16_RWKV-4-Pile-7B-20230109-ctx4096' --strategy 'cuda fp16'
 # python convert_model.py --in '/fsx/BlinkDL/HF-MODEL/rwkv-4-pile-3b/RWKV-4-Pile-3B-20221110-ctx4096' --out 'fp16i8_and_fp16_RWKV-4-Pile-3B-20221110-ctx4096' --strategy 'cuda fp16i8 *10 -> cuda fp16'
+# python convert_model.py --in '/data/BlinkDL/RWKV-4-Pile-7B-Instruct-test4-20230326' --out '/data/BlinkDL/RWKV-4-Pile-7B-Instruct-test4-20230326_fp16' --strategy 'cuda fp16'
+# python convert_model.py --in '/data/BlinkDL/RWKV-4-Raven-14B-v7-Eng-20230404-ctx4096' --out '/data/BlinkDL/RWKV-4-Raven-14B-v7-Eng-20230404-ctx4096_fp16' --strategy 'cuda fp16'
+# python convert_model.py --in '/data/BlinkDL/RWKV-4-Raven-14B-v7-Eng-20230404-ctx4096' --out '/data/BlinkDL/RWKV-4-Raven-14B-v7-Eng-20230404-ctx4096_fp32stream' --strategy 'cuda fp32 *0+'
+# python convert_model.py --in '/data/BlinkDL/RWKV-4-Raven-14B-v7-Eng-20230404-ctx4096' --out '/data/BlinkDL/RWKV-4-Raven-14B-v7-Eng-20230404-ctx4096_fp16i8l19' --strategy 'cuda fp16 -> cuda fp16i8 *19 -> cuda fp16'
+
+os.environ["RWKV_JIT_ON"] = "1"
+os.environ["RWKV_CUDA_ON"] = "1"
 
 
 def get_args():
