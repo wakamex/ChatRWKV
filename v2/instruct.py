@@ -60,8 +60,8 @@ PROMPT_FILE = f"{current_path}/prompt/default/{CHAT_LANG}-{prompt_number}.py"
 
 # args.ctx_len = 1024
 args.ctx_len = 8192
-CHAT_LEN_SHORT = 40
-CHAT_LEN_LONG = 150
+CHAT_LEN_SHORT = 1000  # 40
+CHAT_LEN_LONG = 1700  # 150
 FREE_GEN_LEN = 200
 
 # For better chat & QA quality: reduce temp, reduce top-p, increase repetition penalties
@@ -396,6 +396,7 @@ Below is an instruction that describes a task. Write a response that appropriate
 
             send_msg = pipeline.decode(model_tokens[begin:])
             if "\n\n" in send_msg:
+                print(f"terminated chat at {i} tokens")
                 send_msg = send_msg.strip()
                 break
 
